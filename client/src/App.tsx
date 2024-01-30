@@ -5,7 +5,7 @@ import { generateRandomRoomName } from "./utils";
 const joinMeet = (navigate: Navigator, roomCode: string) => {
   const roomCodePattern = /^[a-zA-Z]{3}-[a-zA-Z]{4}-[a-zA-Z]{3}$/;
   if (roomCodePattern.test(roomCode)) {
-    navigate(`/${roomCode}`);
+    navigate(`/${roomCode}`, { state: { owner: false } });
   } else {
     alert("Invalid room code format");
   }
