@@ -49,10 +49,13 @@ const Room = () => {
             const remoteVideoContainer = document.getElementById(
               "remote-video-container",
             );
+            const remoteVideoDiv = document.createElement("div");
             const remoteVideo = document.createElement("video");
+            remoteVideoDiv.id = peer.targetUserId;
             remoteVideo.autoplay = true;
+            remoteVideoDiv && remoteVideoDiv.appendChild(remoteVideo);
             remoteVideoContainer &&
-              remoteVideoContainer.appendChild(remoteVideo);
+              remoteVideoContainer.appendChild(remoteVideoDiv);
             remoteVideo.srcObject = event.streams[0];
           };
           peer.onicecandidate = (event) => {
@@ -102,6 +105,7 @@ const Room = () => {
                 "remote-video-container",
               );
               const remoteVideo = document.createElement("video");
+              remoteVideo.id = peer.targetUserId;
               remoteVideo.autoplay = true;
               remoteVideoContainer &&
                 remoteVideoContainer.appendChild(remoteVideo);
@@ -160,6 +164,7 @@ const Room = () => {
           remoteVideo.autoplay = true;
           remoteVideoContainer && remoteVideoContainer.appendChild(remoteVideo);
           remoteVideo.srcObject = event.streams[0];
+          if (current) remoteVideo.id = current?.targetUserId;
         };
         current.onicecandidate = (event) => {
           if (event.candidate) {
