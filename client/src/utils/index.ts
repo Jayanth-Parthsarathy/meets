@@ -11,3 +11,5 @@ export function generateRandomRoomName(): string {
 
 export interface RoomLocationState
   extends Readonly<Partial<{ owner: boolean }>> {}
+
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;

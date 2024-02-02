@@ -1,8 +1,6 @@
 import { io } from "socket.io-client";
-
-const URL = "https://fd5c-116-73-158-41.ngrok-free.app/";
-
-export const socket = io(URL, {
+import { BACKEND_URL } from "../utils";
+export const socket = io(BACKEND_URL, {
   extraHeaders: {
     "ngrok-skip-browser-warning": "69420",
   },

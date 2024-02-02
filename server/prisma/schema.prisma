@@ -11,8 +11,29 @@ datasource db {
 }
 
 model User {
-  id       Int     @id @default(autoincrement())
-  email    String  @unique
-  name     String?
-  password String
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  password  String
+  avatar    String?
+  rooms     Room[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
+
+model Room {
+  id           Int      @id @default(autoincrement())
+  customId     String   @unique
+  participants User[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// model Meetings {
+//   room   Room @relation(fields: [roomId], references: [id])
+//   roomId Int
+//   user   User @relation(fields: [userId], references: [id])
+//   userId Int
+//
+//   @@id([roomId, userId])
+// }

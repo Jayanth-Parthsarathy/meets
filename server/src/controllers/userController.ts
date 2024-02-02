@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
 
-export const get = (req: Request, res: Response) => {
+export const getUser = (req: Request, res: Response) => {
   res.send("Hello world");
 };

@@ -1,6 +1,7 @@
 import { useNavigate, type Navigator } from "@solidjs/router";
-import type { Component } from "solid-js";
+import { createEffect, type Component } from "solid-js";
 import { generateRandomRoomName } from "./utils";
+import { axios } from "./utils/axios";
 
 const joinMeet = (navigate: Navigator, roomCode: string) => {
   const roomCodePattern = /^[a-zA-Z]{3}-[a-zA-Z]{4}-[a-zA-Z]{3}$/;
@@ -10,13 +11,24 @@ const joinMeet = (navigate: Navigator, roomCode: string) => {
     alert("Invalid room code format");
   }
 };
-const createMeet = (navigate: Navigator) => {
+const createMeet = async (navigate: Navigator) => {
   const roomName = generateRandomRoomName();
+  const payload = {
+    customId: roomName,
+  };
+  const response = await axios.post("api/rooms/create", payload);
+  console.log(response.data);
   navigate(`/${roomName}`, { state: { owner: true } });
 };
 const App: Component = () => {
   let roomCode = "";
   const navigate = useNavigate();
+  createEffect(async () => {
+    const response = await axios.post("api/auth/check-auth");
+    if (!response.data.loggedIn) {
+      navigate(`/login`);
+    }
+  });
   return (
     <div class="flex gap-4 m-40">
       <button

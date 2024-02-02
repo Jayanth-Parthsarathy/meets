@@ -1,17 +1,22 @@
-import express, { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import express from "express";
 import http from "http";
 import cors from "cors";
+import cookieParser from "cookie-parser";
+import { prisma } from "./utils/db";
 import dotenv from "dotenv";
 import { Server } from "socket.io";
 import { Rooms } from "./types";
 import { roomRouter } from "./routes/room";
 import { userRouter } from "./routes/user";
+import { authRouter } from "./routes/auth";
+import { corsOptions } from "./utils";
 
 async function main() {
   dotenv.config();
   const app = express();
+  app.use(express.json());
+  app.use(cookieParser());
+  app.use(cors(corsOptions));
   const port = process.env.PORT || 3001;
   const server = http.createServer(app);
   const io = new Server(server, {
@@ -21,18 +26,22 @@ async function main() {
     },
   });
 
-  app.use(express.json());
-  app.use(cors());
   app.use("/api/rooms", roomRouter);
   app.use("/api/users", userRouter);
+  app.use("/api/auth", authRouter);
   const rooms: Rooms = {};
   io.on("connection", (socket) => {
     console.log("a user connected");
-    socket.on("join-room", (roomId) => {
+    socket.on("join-room", async (roomId) => {
+      socket.join(roomId);
+      const room = await prisma.room.findFirst({
+        where: {
+          customId: roomId,
+        },
+      });
       if (!rooms[roomId]) {
         rooms[roomId] = [];
       }
-      socket.join(roomId);
       io.to(roomId).emit("users", rooms[roomId], socket.id);
       rooms[roomId].push({ id: socket.id });
       console.log(
@@ -44,7 +53,7 @@ async function main() {
       rooms[roomId] = rooms[roomId].filter((user) => user.id !== socket.id);
       socket.leave(roomId);
       socket.removeAllListeners();
-      console.log("User with socket id " + socket.id + "left room " + roomId);
+      console.log("User with socket id " + socket.id + " left room " + roomId);
     });
 
     socket.on("offer", (offer, targetRoomId, targetUserId, fromId) => {
@@ -100,10 +109,6 @@ async function main() {
       });
       console.log("user left because of " + reason);
     });
-  });
-
-  app.get("/", (req: Request, res: Response) => {
-    res.send("Hello, TypeScript Express!");
   });
 
   server.listen(port, () => {
