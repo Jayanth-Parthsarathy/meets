@@ -23,8 +23,8 @@
     "@solidjs/router": "^0.10.10",
     "axios": "^1.6.7",
     "install": "^0.13.0",
-    "lucide-solid": "^0.316.0",
     "socket.io-client": "^4.7.4",
+    "solid-icons": "^1.1.0",
     "solid-js": "^1.8.11",
     "uuid": "^9.0.1"
   }

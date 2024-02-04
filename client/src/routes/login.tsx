@@ -13,7 +13,7 @@ const Login = () => {
         email: email(),
         password: password(),
       };
-      const response = await axios.post("api/auth/login", payload);
+      await axios.post("api/auth/login", payload);
       navigate("/");
     } catch (err) {
       console.log("Error with registration " + err);
@@ -23,7 +23,8 @@ const Login = () => {
   const logout = async (e: Event) => {
     try {
       e.preventDefault();
-      const response = await axios.post("api/auth/logout");
+      await axios.post("api/auth/logout");
+      localStorage.removeItem("userId");
     } catch (err) {
       console.log("Error with registration " + err);
     }

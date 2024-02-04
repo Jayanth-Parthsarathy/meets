@@ -11,6 +11,7 @@ const joinMeet = (navigate: Navigator, roomCode: string) => {
     alert("Invalid room code format");
   }
 };
+
 const createMeet = async (navigate: Navigator) => {
   const roomName = generateRandomRoomName();
   const payload = {
@@ -26,8 +27,9 @@ const App: Component = () => {
   createEffect(async () => {
     const response = await axios.post("api/auth/check-auth");
     if (!response.data.loggedIn) {
-      navigate(`/login`);
+      return navigate(`/login`);
     }
+    localStorage.setItem("userId", response.data.userId);
   });
   return (
     <div class="flex gap-4 m-40">

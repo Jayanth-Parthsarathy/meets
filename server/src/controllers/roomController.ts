@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../utils/db";
+import prisma from "../utils/db";
 import { AuthRequest } from "../types/auth";
 
 export const getRoom = async (req: Request, res: Response) => {
@@ -141,7 +141,7 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
       }
 
       const updatedParticipants = existingParticipants.filter(
-        (userId) => userId !== user.id,
+        (userId) => userId === user.id,
       );
 
       const updatedRoom = await prisma.room.update({

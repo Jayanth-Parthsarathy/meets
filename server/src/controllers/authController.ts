@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../utils/db";
+import prisma from "../utils/db";
 import {
   comparePassword,
   hashPassword,
@@ -123,7 +123,9 @@ export const isLoggedIn = (req: Request, res: Response) => {
   }
   try {
     const user = verifyJWT(accessToken, accessSecret);
-    return res.status(200).json({ message: "Logged in", loggedIn: true });
+    return res
+      .status(200)
+      .json({ message: "Logged in", loggedIn: true, userId: user.id });
   } catch (err) {
     res.status(200).json({ message: "Not logged in", loggedIn: false });
   }
