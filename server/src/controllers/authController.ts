@@ -125,7 +125,12 @@ export const isLoggedIn = (req: Request, res: Response) => {
     const user = verifyJWT(accessToken, accessSecret);
     return res
       .status(200)
-      .json({ message: "Logged in", loggedIn: true, userId: user.id });
+      .json({
+        message: "Logged in",
+        loggedIn: true,
+        userId: user.id,
+        name: user.name,
+      });
   } catch (err) {
     res.status(200).json({ message: "Not logged in", loggedIn: false });
   }

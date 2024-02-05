@@ -25,7 +25,7 @@ const initSocket = async (
       socket.broadcast.to(roomId).emit("new-user", userPayload);
       socket.join(roomId);
       socket.data.userId = userId;
-      socket.data.name = dbUser?.name
+      socket.data.name = dbUser?.name;
       socket.data.roomId = roomId;
       const room = await prisma.room.findFirst({
         where: {
@@ -79,6 +79,12 @@ const initSocket = async (
       );
     });
 
+    socket.on("mic", (isMicOn, userId) => {
+      socket.broadcast.to(socket.data.roomId).emit("mic", userId, isMicOn);
+    });
+    socket.on("cam", (isCamOn, userId) => {
+      socket.broadcast.to(socket.data.roomId).emit("cam", userId, isCamOn);
+    });
     socket.on("offer", (offer, targetRoomId, targetUserId, fromId) => {
       console.log(
         "Offer sent to room id " +
@@ -128,7 +134,11 @@ const initSocket = async (
     );
 
     socket.on("disconnect", async (reason) => {
-      io.to(socket.data.roomId).emit("leave-room", socket.data.userId, socket.data.name);
+      io.to(socket.data.roomId).emit(
+        "leave-room",
+        socket.data.userId,
+        socket.data.name,
+      );
       if (socket.data.userId) {
         const user = await prisma.user.findFirst({
           where: {

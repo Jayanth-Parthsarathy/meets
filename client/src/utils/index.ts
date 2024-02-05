@@ -13,3 +13,6 @@ export interface RoomLocationState
   extends Readonly<Partial<{ owner: boolean }>> {}
 
 export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+export const TURN_URL= import.meta.env.VITE_TURN_URL;
+export const TURN_USERNAME= import.meta.env.VITE_TURN_USERNAME;
+export const TURN_CREDENTIALS= import.meta.env.VITE_TURN_CREDENTIAL;

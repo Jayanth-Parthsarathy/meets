@@ -7,6 +7,7 @@ export const checkAuthentication = async () => {
     return false;
   }
   localStorage.setItem("userId", response.data.userId);
+  localStorage.setItem("username", response.data.name);
   return true;
 };
 
@@ -20,20 +21,22 @@ export const checkIfRoomExists = async (roomId: string) => {
   return false;
 };
 
-export const joinRoomAndSetupMedia = async(
+export const joinRoomAndSetupMedia = async (
   roomId: string,
   userId: number,
   socket: Socket,
+  stream: MediaStream,
 ) => {
   socket.emit("join-room", roomId, userId);
-  navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-    const localVideo = document.getElementById(
-      "local-video",
-    ) as HTMLVideoElement;
-    if (localVideo) {
-      localVideo.srcObject = stream;
-    }
-  });
+  const localVideo = document.getElementById("local-video") as HTMLVideoElement;
+  if (localVideo) {
+    localVideo.srcObject = stream;
+    localVideo.muted = true;
+  }
+};
+
+export const sendJoinRoomRequest = async (roomId: string) => {
+  await axios.post("api/rooms/join/" + roomId);
 };
 
 export const cleanUpOnLeaveRoom = async (
@@ -49,3 +52,38 @@ export const cleanUpOnLeaveRoom = async (
   socket.emit("leave-room", roomId);
 };
 
+export const handleMute = (
+  isMuted: boolean,
+  socket: Socket,
+  userId: number,
+) => {
+  socket.emit("mic", isMuted, userId);
+};
+
+export const handleCameraOff = (
+  isCameraOn: boolean,
+  socket: Socket,
+  userId: number,
+) => {
+  socket.emit("cam", isCameraOn, userId);
+};
+
+const removeAudio = (inputStream: MediaStream) => {
+  const outputMediaStream = new MediaStream();
+  inputStream.getTracks().forEach((track) => {
+    if (track.kind === "video") {
+      outputMediaStream.addTrack(track.clone());
+    }
+  });
+  return outputMediaStream;
+};
+
+const removleVideoOrAudio = (inputStream: MediaStream) => {
+  const outputMediaStream = new MediaStream();
+  inputStream.getTracks().forEach((track) => {
+    if (track.kind === "audio") {
+      outputMediaStream.addTrack(track.clone());
+    }
+  });
+  return outputMediaStream;
+};
