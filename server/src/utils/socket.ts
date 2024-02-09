@@ -1,19 +1,30 @@
 import { Server } from "socket.io";
 import http from "http";
 import prisma from "./db";
+import { ParticipantStates } from "../types";
 
 const initSocket = async (
   server: http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>,
 ) => {
   const io = new Server(server, {
     cors: {
-      origin: "*",
+      origin: process.env.FRONTEND_URL,
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     },
   });
+  const participantStates: ParticipantStates = {};
+
   io.on("connection", async (socket) => {
-    console.log("a user connected");
     socket.on("join-room", async (roomId, userId) => {
+      if (!participantStates[roomId]) {
+        participantStates[roomId] = {};
+      }
+      if (!participantStates[roomId][userId]) {
+        participantStates[roomId][userId] = {
+          cameraOn: true,
+          micOn: true,
+        };
+      }
       const dbUser = await prisma.user.findFirst({
         where: {
           id: userId,
@@ -22,8 +33,8 @@ const initSocket = async (
       const userPayload = {
         name: dbUser?.name,
       };
-      socket.broadcast.to(roomId).emit("new-user", userPayload);
       socket.join(roomId);
+      socket.broadcast.to(roomId).emit("new-user", userPayload);
       socket.data.userId = userId;
       socket.data.name = dbUser?.name;
       socket.data.roomId = roomId;
@@ -37,15 +48,23 @@ const initSocket = async (
       });
       const payload = room?.participants.map((participant) => ({
         id: participant.id,
+        name: participant.name,
       }));
-      io.to(roomId).emit("users", payload, socket.data.userId);
-      console.log(
-        "User with userid " + socket.data.userId + " joined room " + roomId,
+      io.to(roomId).emit(
+        "users",
+        payload,
+        socket.data.userId,
+        participantStates,
       );
     });
 
     socket.on("leave-room", async (roomId) => {
+      if (socket.data.userId && socket.data.roomId) {
+        delete participantStates[socket.data.roomId][socket.data.userId];
+      }
       io.to(roomId).emit("leave-room", socket.data.userId, socket.data.name);
+      socket.leave(roomId);
+      socket.removeAllListeners();
       const room = await prisma.room.findFirst({
         where: {
           customId: roomId,
@@ -72,45 +91,43 @@ const initSocket = async (
           },
         });
       }
-      socket.leave(roomId);
-      socket.removeAllListeners();
-      console.log(
-        "User with userid " + socket.data.userId + " left room " + roomId,
-      );
     });
 
-    socket.on("mic", (isMicOn, userId) => {
-      socket.broadcast.to(socket.data.roomId).emit("mic", userId, isMicOn);
+    socket.on("mic", (isMicOff, userId) => {
+      if (participantStates[socket.data.roomId]) {
+        if (participantStates[socket.data.roomId][userId]) {
+          participantStates[socket.data.roomId][userId] = {
+            ...participantStates[socket.data.roomId][userId],
+            micOn: !isMicOff,
+          };
+        }
+      }
+      socket.broadcast.to(socket.data.roomId).emit("mic", userId, isMicOff);
     });
-    socket.on("cam", (isCamOn, userId) => {
-      socket.broadcast.to(socket.data.roomId).emit("cam", userId, isCamOn);
+    socket.on("cam", (isCamOff, userId) => {
+      if (participantStates[socket.data.roomId]) {
+        if (participantStates[socket.data.roomId][userId]) {
+          participantStates[socket.data.roomId][userId] = {
+            ...participantStates[socket.data.roomId][userId],
+            cameraOn: !isCamOff,
+          };
+        }
+      }
+      socket.broadcast.to(socket.data.roomId).emit("cam", userId, isCamOff);
     });
-    socket.on("offer", (offer, targetRoomId, targetUserId, fromId) => {
-      console.log(
-        "Offer sent to room id " +
-          targetRoomId +
-          " the offer was " +
-          JSON.stringify(offer) +
-          " for userId " +
-          targetUserId +
-          "from userId " +
-          fromId,
-      );
+
+    socket.on("offer", async (offer, targetRoomId, targetUserId, fromId) => {
+      const fromUser = await prisma.user.findFirst({
+        where: {
+          id: fromId,
+        },
+      });
       socket.broadcast
         .to(targetRoomId)
-        .emit("offer", offer, targetUserId, fromId);
+        .emit("offer", offer, targetUserId, fromId, fromUser?.name);
     });
 
     socket.on("answer", (answer, targetRoomId, targetUserId, fromId) => {
-      console.log(
-        "Answer sent to room id " +
-          targetRoomId +
-          " the answer was " +
-          answer +
-          " for userId " +
-          targetUserId,
-        "from userId " + fromId,
-      );
       socket.broadcast
         .to(targetRoomId)
         .emit("answer", answer, targetUserId, fromId);
@@ -119,14 +136,6 @@ const initSocket = async (
     socket.on(
       "ice-candidate",
       (candidate, targetRoomId, targetUserId, fromId) => {
-        console.log(
-          "ice-candidate from room " +
-            targetRoomId +
-            " to user id " +
-            targetUserId +
-            " from user id " +
-            fromId,
-        );
         socket.broadcast
           .to(targetRoomId)
           .emit("ice-candidate", candidate, targetUserId, fromId);
@@ -134,11 +143,15 @@ const initSocket = async (
     );
 
     socket.on("disconnect", async (reason) => {
+      if (socket.data.userId && socket.data.roomId) {
+        delete participantStates[socket.data.roomId][socket.data.userId];
+      }
       io.to(socket.data.roomId).emit(
         "leave-room",
         socket.data.userId,
         socket.data.name,
       );
+      socket.removeAllListeners();
       if (socket.data.userId) {
         const user = await prisma.user.findFirst({
           where: {
@@ -178,10 +191,6 @@ const initSocket = async (
           });
         }
       }
-      socket.removeAllListeners();
-      console.log(
-        "user of userId " + socket.data.userId + " left because of " + reason,
-      );
     });
   });
 };

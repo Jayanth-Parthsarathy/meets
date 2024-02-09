@@ -6,7 +6,6 @@ import prisma from "./utils/db";
 import dotenv from "dotenv";
 import roomRouter from "./routes/roomRouter";
 import authRouter from "./routes/authRouter";
-import userRouter from "./routes/userRouter";
 import { corsOptions } from "./utils";
 import initSocket from "./utils/socket";
 
@@ -20,7 +19,6 @@ async function main() {
   const server = http.createServer(app);
   initSocket(server);
   app.use("/api/rooms", roomRouter);
-  app.use("/api/users", userRouter);
   app.use("/api/auth", authRouter);
   server
     .listen(port, () => {

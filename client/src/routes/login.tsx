@@ -1,6 +1,8 @@
-import { axios } from "../utils/axios";
+import { A } from "@solidjs/router";
 import { createSignal } from "solid-js";
 import { useNavigate } from "@solidjs/router";
+import { LoginPayload } from "../types/auth";
+import { login } from "../utils/auth";
 
 const Login = () => {
   const [email, setEmail] = createSignal("");
@@ -10,11 +12,11 @@ const Login = () => {
   const handleSubmit = async (e: Event) => {
     try {
       e.preventDefault();
-      const payload = {
+      const payload: LoginPayload = {
         email: email(),
         password: password(),
       };
-      await axios.post("api/auth/login", payload);
+      await login(payload);
       navigate("/");
     } catch (err) {
       console.log("Error with registration " + err);
@@ -54,10 +56,10 @@ const Login = () => {
           </button>
         </form>
         <p class="underline italic text-xs mt-3">
-          New user?{" "}
-          <a href="/register" class="font-bold non-italic text-blue-300 ml-1">
+          New user?
+          <A href="/register" class="font-bold non-italic text-blue-300 ml-1">
             Register
-          </a>
+          </A>
         </p>
       </div>
     </div>

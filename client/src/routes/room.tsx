@@ -18,6 +18,7 @@ import {
   joinRoomAndSetupMedia,
   sendJoinRoomRequest,
 } from "../utils/room";
+import { ParticipantStates } from "../types/socket";
 
 const Room = () => {
   const params = useParams();
@@ -38,41 +39,66 @@ const Room = () => {
   const [leaverName, setLeaverName] = createSignal("");
 
   createEffect(async () => {
-    navigator.mediaDevices
-      .getUserMedia({
-        video: !isCameraOff(),
-        audio: !isMuted(),
-      })
-      .then(async (stream) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      function updateUIForUser(
+        participantStates: ParticipantStates,
+        roomId: string,
+        targetUserId: number,
+      ) {
+        const { cameraOn, micOn } = participantStates[roomId][targetUserId];
+        const userElement = document.getElementById(
+          "vid-" + targetUserId,
+        ) as HTMLVideoElement;
+        if (userElement) {
+          if (!cameraOn) {
+            userElement.style.display = "none";
+          }
+          if (!micOn) {
+            userElement.muted = true;
+          }
+        }
+      }
+      try {
         const isAuthed = await checkAuthentication();
         if (!isAuthed) {
           return navigate(`/login`);
         }
-        const userId = Number(localStorage.getItem("userId"));
-        const roomExists = await checkIfRoomExists(roomId);
-        if (!roomExists) {
-          return navigate("/");
-        }
-        setRoomExists(true);
-        await joinRoomAndSetupMedia(roomId, userId, socket, stream);
-        socket.on("new-user", (user) => {
-          setNewUserName(user.name);
-          setShowNewUserNotification(true);
-          setTimeout(() => {
-            setShowNewUserNotification(false);
-            setNewUserName("");
-          }, 2000);
-        });
-        socket.on("users", async (userList, userid) => {
+      } catch (err) {
+        console.error("Error with authenticating the user");
+        return navigate(`/login`);
+      }
+      const userId = Number(localStorage.getItem("userId"));
+      const roomExists = await checkIfRoomExists(roomId);
+      if (!roomExists) {
+        return navigate("/");
+      }
+      setRoomExists(true);
+      await joinRoomAndSetupMedia(roomId, userId, socket, stream);
+      socket.on("new-user", (user) => {
+        setNewUserName(user.name);
+        setShowNewUserNotification(true);
+        setTimeout(() => {
+          setShowNewUserNotification(false);
+          setNewUserName("");
+        }, 2000);
+      });
+      socket.on(
+        "users",
+        async (userList, userid, participantStates: ParticipantStates) => {
           if (userid === userId) {
             await sendJoinRoomRequest(roomId);
             setUsers(userList);
-            console.log(users());
             for (let i = 0; i < users().length; i++) {
               let lc: ExtendedRTCPeerConnection = new RTCPeerConnection(
                 configuration,
               ) as ExtendedRTCPeerConnection;
               lc.targetUserId = users()[i].id;
+              lc.targetUserName = users()[i].name;
               setRemotePeers((remotePeers) => [...remotePeers, lc]);
             }
             remotePeers().map((peer) => {
@@ -89,14 +115,23 @@ const Room = () => {
                   remoteVideoDiv.id = "div-" + peer.targetUserId;
                   const newRemoteVideo = document.createElement("video");
                   newRemoteVideo.id = "vid-" + peer.targetUserId;
+                  const newRemoteNameDiv = document.createElement("div");
+                  newRemoteNameDiv.textContent = peer.targetUserName;
+                  newRemoteNameDiv.style.position = "relative";
+                  newRemoteNameDiv.style.bottom = "3rem";
+                  newRemoteNameDiv.style.fontSize = "2rem";
+                  newRemoteNameDiv.style.left = "3rem";
                   newRemoteVideo.autoplay = true;
                   remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteVideo);
+                  remoteVideoDiv &&
+                    remoteVideoDiv.appendChild(newRemoteNameDiv);
                   remoteVideoContainer &&
                     remoteVideoContainer.appendChild(remoteVideoDiv);
                   newRemoteVideo.srcObject = stream;
                 } else {
                   remoteVideo.srcObject = stream;
                 }
+                updateUIForUser(participantStates, roomId, peer.targetUserId);
               };
               peer.onicecandidate = (event) => {
                 if (event.candidate) {
@@ -116,8 +151,6 @@ const Room = () => {
                 .createOffer()
                 .then((offer) => peer.setLocalDescription(offer))
                 .then(() => {
-                  console.log("created offer");
-                  console.log(peer.localDescription);
                   socket.emit(
                     "offer",
                     peer.localDescription,
@@ -128,181 +161,195 @@ const Room = () => {
                 });
             });
           }
-        });
+        },
+      );
 
-        socket.on("answer", (answer, targetUserId, fromId) => {
-          if (userId == targetUserId) {
-            for (let peer of remotePeers()) {
-              if (peer.targetUserId == fromId) {
-                console.log("received answer");
-                peer.setRemoteDescription(new RTCSessionDescription(answer));
-                peer.ontrack = (event) => {
-                  const stream = event.streams[0];
-                  const remoteVideo = document.getElementById(
-                    "vid-" + peer.targetUserId,
-                  ) as HTMLVideoElement;
-                  if (!remoteVideo) {
-                    const remoteVideoContainer = document.getElementById(
-                      "remote-video-container",
-                    );
-                    const remoteVideoDiv = document.createElement("div");
-                    remoteVideoDiv.id = "div-" + peer.targetUserId;
-                    const newRemoteVideo = document.createElement("video");
-                    newRemoteVideo.id = "vid-" + peer.targetUserId;
-                    newRemoteVideo.autoplay = true;
-                    remoteVideoDiv &&
-                      remoteVideoDiv.appendChild(newRemoteVideo);
-                    remoteVideoContainer &&
-                      remoteVideoContainer.appendChild(remoteVideoDiv);
-                    newRemoteVideo.srcObject = stream;
-                  } else {
-                    remoteVideo.srcObject = stream;
-                  }
-                };
-                break;
-              }
+      socket.on("answer", (answer, targetUserId, fromId) => {
+        if (userId == targetUserId) {
+          for (let peer of remotePeers()) {
+            if (peer.targetUserId == fromId) {
+              peer.setRemoteDescription(new RTCSessionDescription(answer));
+              break;
             }
           }
-        });
-
-        socket.on("ice-candidate", (candidate, targetUserId, fromId) => {
-          if (targetUserId == userId) {
-            console.log("Ice canditate");
-            let current: ExtendedRTCPeerConnection | null = null;
-            for (let peer of remotePeers()) {
-              if (peer.targetUserId == fromId) {
-                current = peer;
-                break;
-              }
-            }
-            if (current == null) {
-              console.log("no previous peer creating new peer ...");
-              let rc: ExtendedRTCPeerConnection = new RTCPeerConnection(
-                configuration,
-              ) as ExtendedRTCPeerConnection;
-              rc.targetUserId = fromId;
-              setRemotePeers((peers) => [...peers, rc]);
-              current = rc;
-            }
-            current.addIceCandidate(new RTCIceCandidate(candidate));
-          }
-        });
-
-        socket.on("offer", (offer, targetUserId, fromId) => {
-          if (targetUserId == userId) {
-            let current: ExtendedRTCPeerConnection | null = null;
-            for (let peer of remotePeers()) {
-              if (peer.targetUserId == fromId) {
-                current = peer;
-              }
-            }
-            if (current == null) {
-              let lc: ExtendedRTCPeerConnection = new RTCPeerConnection(
-                configuration,
-              ) as ExtendedRTCPeerConnection;
-              lc.targetUserId = fromId;
-              setRemotePeers((peers) => [...peers, lc]);
-              current = lc;
-            }
-            current.ontrack = (event) => {
-              const stream = event.streams[0];
-              const remoteVideo = document.getElementById(
-                "vid-" + current?.targetUserId,
-              ) as HTMLVideoElement;
-              if (!remoteVideo) {
-                const remoteVideoContainer = document.getElementById(
-                  "remote-video-container",
-                );
-                const remoteVideoDiv = document.createElement("div");
-                remoteVideoDiv.id = "div-" + current?.targetUserId;
-                const newRemoteVideo = document.createElement("video");
-                newRemoteVideo.id = "vid-" + current?.targetUserId;
-                newRemoteVideo.autoplay = true;
-                remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteVideo);
-                remoteVideoContainer &&
-                  remoteVideoContainer.appendChild(remoteVideoDiv);
-                newRemoteVideo.srcObject = stream;
-              } else {
-                remoteVideo.srcObject = stream;
-              }
-            };
-            current.onicecandidate = (event) => {
-              if (event.candidate) {
-                socket.emit(
-                  "ice-candidate",
-                  event.candidate,
-                  roomId,
-                  current?.targetUserId,
-                  userId,
-                );
-              }
-            };
-            stream.getTracks().forEach((track) => {
-              current?.addTrack(track, stream);
-            });
-            current
-              ?.setRemoteDescription(new RTCSessionDescription(offer))
-              .then(() => current?.createAnswer())
-              .then((answer) => current?.setLocalDescription(answer))
-              .then(() => {
-                socket.emit(
-                  "answer",
-                  current?.localDescription,
-                  roomId,
-                  fromId,
-                  targetUserId,
-                );
-              })
-              .catch((err) => {
-                console.log(err);
-              });
-          }
-        });
-
-        socket.on("leave-room", (leaverId, name) => {
-          if (leaverId != userId) {
-            setLeaverName(name);
-            setShowLeftUserNotification(true);
-            setTimeout(() => {
-              setShowLeftUserNotification(false);
-              setLeaverName("");
-            }, 2000);
-            const divToRemove = document.getElementById("div-" + leaverId);
-            divToRemove && divToRemove.remove();
-            setRemotePeers((peers) =>
-              peers.filter((peer) => peer.targetUserId !== leaverId),
-            );
-          }
-        });
-      })
-      .catch((err) => {
-        alert("Please connect a camera and a microphone to continue");
+        }
       });
+
+      socket.on("ice-candidate", (candidate, targetUserId, fromId) => {
+        if (targetUserId == userId) {
+          let current: ExtendedRTCPeerConnection | null = null;
+          for (let peer of remotePeers()) {
+            if (peer.targetUserId == fromId) {
+              current = peer;
+              break;
+            }
+          }
+          if (current == null) {
+            let rc: ExtendedRTCPeerConnection = new RTCPeerConnection(
+              configuration,
+            ) as ExtendedRTCPeerConnection;
+            rc.targetUserId = fromId;
+            setRemotePeers((peers) => [...peers, rc]);
+            current = rc;
+          }
+          current.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      });
+
+      socket.on("offer", (offer, targetUserId, fromId, fromUserName) => {
+        if (targetUserId == userId) {
+          let current: ExtendedRTCPeerConnection | null = null;
+          for (let peer of remotePeers()) {
+            if (peer.targetUserId == fromId) {
+              current = peer;
+              peer.targetUserName = fromUserName;
+            }
+          }
+          if (current == null) {
+            let lc: ExtendedRTCPeerConnection = new RTCPeerConnection(
+              configuration,
+            ) as ExtendedRTCPeerConnection;
+            lc.targetUserId = fromId;
+            lc.targetUserName = fromUserName;
+            setRemotePeers((peers) => [...peers, lc]);
+            current = lc;
+          }
+          current.ontrack = (event) => {
+            const stream = event.streams[0];
+            const remoteVideo = document.getElementById(
+              "vid-" + current?.targetUserId,
+            ) as HTMLVideoElement;
+            if (!remoteVideo) {
+              const remoteVideoContainer = document.getElementById(
+                "remote-video-container",
+              );
+              const remoteVideoDiv = document.createElement("div");
+              remoteVideoDiv.id = "div-" + current?.targetUserId;
+              const newRemoteVideo = document.createElement("video");
+              const newRemoteNameDiv = document.createElement("div");
+              if (current)
+                newRemoteNameDiv.textContent = current.targetUserName;
+              newRemoteNameDiv.style.position = "relative";
+              newRemoteNameDiv.style.bottom = "3rem";
+              newRemoteNameDiv.style.fontSize = "2rem";
+              newRemoteNameDiv.style.left = "3rem";
+              newRemoteVideo.id = "vid-" + current?.targetUserId;
+              newRemoteVideo.autoplay = true;
+              remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteVideo);
+              remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteNameDiv);
+              remoteVideoContainer &&
+                remoteVideoContainer.appendChild(remoteVideoDiv);
+              newRemoteVideo.srcObject = stream;
+            } else {
+              remoteVideo.srcObject = stream;
+            }
+          };
+          current.onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit(
+                "ice-candidate",
+                event.candidate,
+                roomId,
+                current?.targetUserId,
+                userId,
+              );
+            }
+          };
+          stream.getTracks().forEach((track) => {
+            current?.addTrack(track, stream);
+          });
+          current
+            ?.setRemoteDescription(new RTCSessionDescription(offer))
+            .then(() => current?.createAnswer())
+            .then((answer) => current?.setLocalDescription(answer))
+            .then(() => {
+              socket.emit(
+                "answer",
+                current?.localDescription,
+                roomId,
+                fromId,
+                targetUserId,
+              );
+            })
+            .catch((err) => {
+              console.log(err);
+            });
+        }
+      });
+
+      socket.on("cam", (uid, isCamOff) => {
+        if (userId != uid) {
+          const curVideo = document.getElementById(
+            "vid-" + uid,
+          ) as HTMLVideoElement;
+          if (isCamOff) {
+            curVideo.style.display = "none";
+            curVideo.pause();
+          } else {
+            curVideo.style.display = "";
+            curVideo.play();
+          }
+        }
+      });
+
+      socket.on("mic", (uid, isMicOff) => {
+        if (userId != uid) {
+          const curVideo = document.getElementById(
+            "vid-" + uid,
+          ) as HTMLVideoElement;
+          if (isMicOff) {
+            curVideo.muted = true;
+          } else {
+            curVideo.muted = false;
+          }
+        }
+      });
+
+      socket.on("leave-room", (leaverId, name) => {
+        if (leaverId != userId) {
+          setLeaverName(name);
+          setShowLeftUserNotification(true);
+          setTimeout(() => {
+            setShowLeftUserNotification(false);
+            setLeaverName("");
+          }, 2000);
+          const divToRemove = document.getElementById("div-" + leaverId);
+          divToRemove && divToRemove.remove();
+          setRemotePeers((peers) =>
+            peers.filter((peer) => peer.targetUserId !== leaverId),
+          );
+        }
+      });
+    } catch (err) {
+      console.error("Error with accessing media devices " + err);
+    }
   });
 
   onCleanup(async () => {
-    await cleanUpOnLeaveRoom(socket, roomExists(), roomId);
+    try {
+      await cleanUpOnLeaveRoom(socket, roomExists(), roomId);
+    } catch (err) {
+      console.error("Error during clean up and leaving the room");
+    }
   });
 
   return (
     <div class="min-h-screen">
       <div class="grid grid-cols-4 min-w-max">
-        <div id="remote-video-container" class="grid grid-cols-2 gap-4">
-          <div class="w-96 h-96">
-            <video id="local-video" class="h-max w-max" autoplay muted></video>
+        <div id="remote-video-container" class="grid grid-cols-4 gap-4">
+          <div style={{ width: "40rem", height: "40rem" }}>
+            <div id="local-div">
+              <video
+                id="local-video"
+                class="h-max w-max"
+                autoplay
+                muted
+              ></video>
+            </div>
             <div class="text-white relative bottom-10 left-10 text-xl">
               {localStorage.getItem("username")}
             </div>
           </div>
-          {remotePeers().map((peer) => (
-            <div class="w-96 h-96">
-              <video
-                id={`vid-${peer.targetUserId}`}
-                class="h-max w-max"
-                autoplay
-              ></video>
-            </div>
-          ))}
         </div>
       </div>
       {showNewUserNotification() && (
@@ -325,6 +372,14 @@ const Room = () => {
           }}
           onClick={() => {
             setIsMuted(!isMuted());
+            const localVideo = document.getElementById(
+              "local-video",
+            ) as HTMLVideoElement;
+            if (isMuted()) {
+              localVideo.muted = true;
+            } else {
+              localVideo.muted = false;
+            }
             handleMute(
               isMuted(),
               socket,
@@ -332,7 +387,7 @@ const Room = () => {
             );
           }}
         >
-          {isMuted() ? <FiMic /> : <FiMicOff />}
+          {isMuted() ? <FiMicOff /> : <FiMic />}
         </button>
         <IoCall
           class="bg-white text-5xl bottom-4 right-4 fixed rounded-full p-2 text-black cursor-pointer"
@@ -341,7 +396,7 @@ const Room = () => {
             right: "50%",
             transform: "translate(50%, 50%)",
           }}
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/", { replace: true })}
         />
         <button
           class="bg-white text-black text-4xl bottom-4 right-4 fixed rounded-full p-2 cursor-pointer"
@@ -352,6 +407,16 @@ const Room = () => {
           }}
           onClick={() => {
             setIsCameraOff(!isCameraOff());
+            const localVideo = document.getElementById(
+              "local-video",
+            ) as HTMLVideoElement;
+            if (isCameraOff()) {
+              localVideo.style.display = "none";
+              localVideo.pause();
+            } else {
+              localVideo.style.display = "";
+              localVideo.play();
+            }
             handleCameraOff(
               isCameraOff(),
               socket,
@@ -359,7 +424,7 @@ const Room = () => {
             );
           }}
         >
-          {isCameraOff() ? <BsCameraVideoFill /> : <BsCameraVideoOffFill />}
+          {isCameraOff() ? <BsCameraVideoOffFill /> : <BsCameraVideoFill />}
         </button>
       </div>
     </div>

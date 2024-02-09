@@ -20,9 +20,9 @@ render(
   () => (
     <Router>
       <Route path="/" component={App} />
-      <Route path="/:id" component={Room} />
       <Route path="/register" component={Register} />
       <Route path="/login" component={Login} />
+      <Route path="/:id" component={Room} />
     </Router>
   ),
   root!,

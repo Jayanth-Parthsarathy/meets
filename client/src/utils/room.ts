@@ -48,8 +48,8 @@ export const cleanUpOnLeaveRoom = async (
     const response = await axios.post("api/rooms/leave/" + roomId);
     console.log(response.data);
   }
-  socket.removeAllListeners();
   socket.emit("leave-room", roomId);
+  socket.removeAllListeners();
 };
 
 export const handleMute = (
@@ -61,14 +61,15 @@ export const handleMute = (
 };
 
 export const handleCameraOff = (
-  isCameraOn: boolean,
+  isCameraOff: boolean,
   socket: Socket,
   userId: number,
 ) => {
-  socket.emit("cam", isCameraOn, userId);
+  socket.emit("cam", isCameraOff, userId);
 };
 
 const removeAudio = (inputStream: MediaStream) => {
+  const localVideo = document.getElementById("local-video");
   const outputMediaStream = new MediaStream();
   inputStream.getTracks().forEach((track) => {
     if (track.kind === "video") {
