@@ -1,5 +1,7 @@
 import { Socket } from "socket.io-client";
 import { axios } from "./axios";
+import { ParticipantStates } from "../types/socket";
+import { ExtendedRTCPeerConnection } from "../types/webrtc";
 
 export const checkAuthentication = async () => {
   const response = await axios.post("api/auth/check-auth");
@@ -45,8 +47,7 @@ export const cleanUpOnLeaveRoom = async (
   roomId: string,
 ) => {
   if (roomExists) {
-    const response = await axios.post("api/rooms/leave/" + roomId);
-    console.log(response.data);
+    await axios.post("api/rooms/leave/" + roomId);
   }
   socket.emit("leave-room", roomId);
   socket.removeAllListeners();
@@ -68,23 +69,138 @@ export const handleCameraOff = (
   socket.emit("cam", isCameraOff, userId);
 };
 
-const removeAudio = (inputStream: MediaStream) => {
-  const localVideo = document.getElementById("local-video");
-  const outputMediaStream = new MediaStream();
-  inputStream.getTracks().forEach((track) => {
-    if (track.kind === "video") {
-      outputMediaStream.addTrack(track.clone());
+export const updateUIForUser = (
+  participantStates: ParticipantStates,
+  roomId: string,
+  targetUserId: number,
+) => {
+  const { cameraOn, micOn } = participantStates[roomId][targetUserId];
+  const userElement = document.getElementById(
+    "vid-" + targetUserId,
+  ) as HTMLVideoElement;
+  const userTextElement = document.getElementById(
+    "text-" + targetUserId,
+  ) as HTMLDivElement;
+  const userVideoDiv = document.getElementById(
+    "div-" + targetUserId,
+  ) as HTMLDivElement;
+  if (userElement) {
+    if (!cameraOn) {
+      userTextElement.style.position = "static";
+      userVideoDiv.style.display = "flex";
+      userVideoDiv.style.alignItems = "center";
+      userVideoDiv.style.justifyContent = "center";
+      userElement.style.display = "none";
+      userElement.pause();
     }
-  });
-  return outputMediaStream;
+    if (!micOn) {
+      userElement.muted = true;
+    }
+  }
 };
 
-const removleVideoOrAudio = (inputStream: MediaStream) => {
-  const outputMediaStream = new MediaStream();
-  inputStream.getTracks().forEach((track) => {
-    if (track.kind === "audio") {
-      outputMediaStream.addTrack(track.clone());
+export const createElementForRemotePeer = (
+  peer: ExtendedRTCPeerConnection,
+  stream: MediaStream,
+) => {
+  const remoteVideoContainer = document.getElementById(
+    "remote-video-container",
+  );
+  const remoteVideoDiv = document.createElement("div");
+  remoteVideoDiv.style.width = "24rem";
+  remoteVideoDiv.style.height = "24rem";
+  remoteVideoDiv.id = "div-" + peer.targetUserId;
+  const newRemoteVideo = document.createElement("video");
+  newRemoteVideo.id = "vid-" + peer.targetUserId;
+  const newRemoteNameDiv = document.createElement("div");
+  newRemoteNameDiv.id = "text-" + peer.targetUserId;
+  newRemoteNameDiv.textContent = peer.targetUserName;
+  newRemoteNameDiv.style.position = "relative";
+  newRemoteNameDiv.style.bottom = "3rem";
+  newRemoteNameDiv.style.fontSize = "2rem";
+  newRemoteNameDiv.style.left = "3rem";
+  newRemoteVideo.autoplay = true;
+  newRemoteNameDiv.style.fontSize = "1.25rem";
+  newRemoteNameDiv.style.color = "white";
+  newRemoteNameDiv.style.lineHeight = "1.75rem";
+  remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteVideo);
+  remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteNameDiv);
+  remoteVideoContainer && remoteVideoContainer.appendChild(remoteVideoDiv);
+  newRemoteVideo.srcObject = stream;
+};
+
+export const handleRemoteCam = (
+  uid: number,
+  userId: number,
+  isCamOff: boolean,
+) => {
+  if (userId != uid) {
+    const curVideo = document.getElementById("vid-" + uid) as HTMLVideoElement;
+    const curVideoDiv = document.getElementById(
+      "div-" + uid,
+    ) as HTMLVideoElement;
+    const curText = document.getElementById("text-" + uid) as HTMLDivElement;
+    if (isCamOff) {
+      curVideo.style.display = "none";
+      curVideo.pause();
+      curText.style.position = "static";
+      curVideoDiv.style.display = "flex";
+      curVideoDiv.style.alignItems = "center";
+      curVideoDiv.style.justifyContent = "center";
+    } else {
+      curVideo.style.display = "";
+      curVideo.play();
+      curText.style.position = "relative";
+      curVideoDiv.style.display = "";
+      curVideoDiv.style.alignItems = "";
+      curVideoDiv.style.justifyContent = "";
     }
-  });
-  return outputMediaStream;
+  }
+};
+
+export const handleRemoteMic = (
+  uid: number,
+  userId: number,
+  isMicOff: boolean,
+) => {
+  if (userId != uid) {
+    const curVideo = document.getElementById("vid-" + uid) as HTMLVideoElement;
+    if (isMicOff) {
+      curVideo.muted = true;
+    } else {
+      curVideo.muted = false;
+    }
+  }
+};
+
+export const handleLocalCam = (isCameraOff: boolean) => {
+  const localVideo = document.getElementById("local-video") as HTMLVideoElement;
+  const localText = document.getElementById("local-text") as HTMLDivElement;
+  const localVideoDiv = document.getElementById(
+    "local-div",
+  ) as HTMLVideoElement;
+  if (isCameraOff) {
+    localVideo.style.display = "none";
+    localText.style.position = "static";
+    localVideoDiv.style.display = "flex";
+    localVideoDiv.style.alignItems = "center";
+    localVideoDiv.style.justifyContent = "center";
+    localVideo.pause();
+  } else {
+    localVideo.style.display = "";
+    localText.style.position = "relative";
+    localVideoDiv.style.display = "";
+    localVideoDiv.style.alignItems = "";
+    localVideoDiv.style.justifyContent = "";
+    localVideo.play();
+  }
+};
+
+export const handleLocalMic = (isMuted: boolean) => {
+  const localVideo = document.getElementById("local-video") as HTMLVideoElement;
+  if (isMuted) {
+    localVideo.muted = true;
+  } else {
+    localVideo.muted = false;
+  }
 };

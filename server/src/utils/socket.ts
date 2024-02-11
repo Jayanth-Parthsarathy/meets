@@ -116,16 +116,14 @@ const initSocket = async (
       socket.broadcast.to(socket.data.roomId).emit("cam", userId, isCamOff);
     });
 
-    socket.on("offer", async (offer, targetRoomId, targetUserId, fromId) => {
-      const fromUser = await prisma.user.findFirst({
-        where: {
-          id: fromId,
-        },
-      });
-      socket.broadcast
-        .to(targetRoomId)
-        .emit("offer", offer, targetUserId, fromId, fromUser?.name);
-    });
+    socket.on(
+      "offer",
+      async (offer, targetRoomId, targetUserId, fromId, fromName) => {
+        socket.broadcast
+          .to(targetRoomId)
+          .emit("offer", offer, targetUserId, fromId, fromName);
+      },
+    );
 
     socket.on("answer", (answer, targetRoomId, targetUserId, fromId) => {
       socket.broadcast

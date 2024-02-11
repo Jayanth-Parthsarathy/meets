@@ -18,8 +18,7 @@ const createMeet = async (navigate: Navigator) => {
   const payload = {
     customId: roomName,
   };
-  const response = await axios.post("api/rooms/create", payload);
-  console.log(response.data);
+  await axios.post("api/rooms/create", payload);
   navigate(`/${roomName}`, { state: { owner: true } });
 };
 

@@ -13,10 +13,16 @@ import {
   checkAuthentication,
   checkIfRoomExists,
   cleanUpOnLeaveRoom,
+  createElementForRemotePeer,
   handleCameraOff,
+  handleLocalCam,
+  handleLocalMic,
   handleMute,
+  handleRemoteCam,
+  handleRemoteMic,
   joinRoomAndSetupMedia,
   sendJoinRoomRequest,
+  updateUIForUser,
 } from "../utils/room";
 import { ParticipantStates } from "../types/socket";
 
@@ -44,25 +50,6 @@ const Room = () => {
         video: true,
         audio: true,
       });
-
-      function updateUIForUser(
-        participantStates: ParticipantStates,
-        roomId: string,
-        targetUserId: number,
-      ) {
-        const { cameraOn, micOn } = participantStates[roomId][targetUserId];
-        const userElement = document.getElementById(
-          "vid-" + targetUserId,
-        ) as HTMLVideoElement;
-        if (userElement) {
-          if (!cameraOn) {
-            userElement.style.display = "none";
-          }
-          if (!micOn) {
-            userElement.muted = true;
-          }
-        }
-      }
       try {
         const isAuthed = await checkAuthentication();
         if (!isAuthed) {
@@ -108,26 +95,7 @@ const Room = () => {
                   "vid-" + peer.targetUserId,
                 ) as HTMLVideoElement;
                 if (!remoteVideo) {
-                  const remoteVideoContainer = document.getElementById(
-                    "remote-video-container",
-                  );
-                  const remoteVideoDiv = document.createElement("div");
-                  remoteVideoDiv.id = "div-" + peer.targetUserId;
-                  const newRemoteVideo = document.createElement("video");
-                  newRemoteVideo.id = "vid-" + peer.targetUserId;
-                  const newRemoteNameDiv = document.createElement("div");
-                  newRemoteNameDiv.textContent = peer.targetUserName;
-                  newRemoteNameDiv.style.position = "relative";
-                  newRemoteNameDiv.style.bottom = "3rem";
-                  newRemoteNameDiv.style.fontSize = "2rem";
-                  newRemoteNameDiv.style.left = "3rem";
-                  newRemoteVideo.autoplay = true;
-                  remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteVideo);
-                  remoteVideoDiv &&
-                    remoteVideoDiv.appendChild(newRemoteNameDiv);
-                  remoteVideoContainer &&
-                    remoteVideoContainer.appendChild(remoteVideoDiv);
-                  newRemoteVideo.srcObject = stream;
+                  createElementForRemotePeer(peer, stream);
                 } else {
                   remoteVideo.srcObject = stream;
                 }
@@ -157,6 +125,7 @@ const Room = () => {
                     roomId,
                     peer.targetUserId,
                     userId,
+                    localStorage.getItem("username"),
                   );
                 });
             });
@@ -220,26 +189,7 @@ const Room = () => {
               "vid-" + current?.targetUserId,
             ) as HTMLVideoElement;
             if (!remoteVideo) {
-              const remoteVideoContainer = document.getElementById(
-                "remote-video-container",
-              );
-              const remoteVideoDiv = document.createElement("div");
-              remoteVideoDiv.id = "div-" + current?.targetUserId;
-              const newRemoteVideo = document.createElement("video");
-              const newRemoteNameDiv = document.createElement("div");
-              if (current)
-                newRemoteNameDiv.textContent = current.targetUserName;
-              newRemoteNameDiv.style.position = "relative";
-              newRemoteNameDiv.style.bottom = "3rem";
-              newRemoteNameDiv.style.fontSize = "2rem";
-              newRemoteNameDiv.style.left = "3rem";
-              newRemoteVideo.id = "vid-" + current?.targetUserId;
-              newRemoteVideo.autoplay = true;
-              remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteVideo);
-              remoteVideoDiv && remoteVideoDiv.appendChild(newRemoteNameDiv);
-              remoteVideoContainer &&
-                remoteVideoContainer.appendChild(remoteVideoDiv);
-              newRemoteVideo.srcObject = stream;
+              if (current) createElementForRemotePeer(current, stream);
             } else {
               remoteVideo.srcObject = stream;
             }
@@ -278,31 +228,11 @@ const Room = () => {
       });
 
       socket.on("cam", (uid, isCamOff) => {
-        if (userId != uid) {
-          const curVideo = document.getElementById(
-            "vid-" + uid,
-          ) as HTMLVideoElement;
-          if (isCamOff) {
-            curVideo.style.display = "none";
-            curVideo.pause();
-          } else {
-            curVideo.style.display = "";
-            curVideo.play();
-          }
-        }
+        handleRemoteCam(uid, userId, isCamOff);
       });
 
       socket.on("mic", (uid, isMicOff) => {
-        if (userId != uid) {
-          const curVideo = document.getElementById(
-            "vid-" + uid,
-          ) as HTMLVideoElement;
-          if (isMicOff) {
-            curVideo.muted = true;
-          } else {
-            curVideo.muted = false;
-          }
-        }
+        handleRemoteMic(uid, userId, isMicOff);
       });
 
       socket.on("leave-room", (leaverId, name) => {
@@ -337,16 +267,12 @@ const Room = () => {
     <div class="min-h-screen">
       <div class="grid grid-cols-4 min-w-max">
         <div id="remote-video-container" class="grid grid-cols-4 gap-4">
-          <div style={{ width: "40rem", height: "40rem" }}>
-            <div id="local-div">
-              <video
-                id="local-video"
-                class="h-max w-max"
-                autoplay
-                muted
-              ></video>
-            </div>
-            <div class="text-white relative bottom-10 left-10 text-xl">
+          <div id="local-div" class="h-96 w-96">
+            <video id="local-video" class="h-max w-max" autoplay muted></video>
+            <div
+              class="text-white relative bottom-10 left-10 text-xl"
+              id="local-text"
+            >
               {localStorage.getItem("username")}
             </div>
           </div>
@@ -372,14 +298,7 @@ const Room = () => {
           }}
           onClick={() => {
             setIsMuted(!isMuted());
-            const localVideo = document.getElementById(
-              "local-video",
-            ) as HTMLVideoElement;
-            if (isMuted()) {
-              localVideo.muted = true;
-            } else {
-              localVideo.muted = false;
-            }
+            handleLocalMic(isMuted());
             handleMute(
               isMuted(),
               socket,
@@ -407,16 +326,7 @@ const Room = () => {
           }}
           onClick={() => {
             setIsCameraOff(!isCameraOff());
-            const localVideo = document.getElementById(
-              "local-video",
-            ) as HTMLVideoElement;
-            if (isCameraOff()) {
-              localVideo.style.display = "none";
-              localVideo.pause();
-            } else {
-              localVideo.style.display = "";
-              localVideo.play();
-            }
+            handleLocalCam(isCameraOff());
             handleCameraOff(
               isCameraOff(),
               socket,
