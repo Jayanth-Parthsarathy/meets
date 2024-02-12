@@ -46,10 +46,10 @@ const Room = () => {
 
   createEffect(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+      const roomExists = await checkIfRoomExists(roomId);
+      if (!roomExists) {
+        return navigate("/");
+      }
       try {
         const isAuthed = await checkAuthentication();
         if (!isAuthed) {
@@ -59,12 +59,12 @@ const Room = () => {
         console.error("Error with authenticating the user");
         return navigate(`/login`);
       }
-      const userId = Number(localStorage.getItem("userId"));
-      const roomExists = await checkIfRoomExists(roomId);
-      if (!roomExists) {
-        return navigate("/");
-      }
       setRoomExists(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      const userId = Number(localStorage.getItem("userId"));
       await joinRoomAndSetupMedia(roomId, userId, socket, stream);
       socket.on("new-user", (user) => {
         setNewUserName(user.name);

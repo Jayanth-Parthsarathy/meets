@@ -1,7 +1,7 @@
 import { axios } from "./axios";
 import { LoginPayload, RegisterPayload } from "../types/auth";
 
-const logout = async (e: Event) => {
+export const logout = async (e: Event) => {
   try {
     e.preventDefault();
     await axios.post("api/auth/logout");
