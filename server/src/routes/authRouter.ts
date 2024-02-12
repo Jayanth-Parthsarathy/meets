@@ -7,9 +7,11 @@ import {
   register,
 } from "../controllers/authController";
 
-export const authRouter = Router();
+const authRouter = Router();
 authRouter.post("/register", register);
 authRouter.post("/login", login);
 authRouter.post("/logout", logout);
 authRouter.post("/check-auth", isLoggedIn);
 authRouter.post("/refresh", refreshAccessToken);
+
+export default authRouter;

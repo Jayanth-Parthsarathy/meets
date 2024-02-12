@@ -1,8 +1,9 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { jwtPayload } from "../types/auth";
+const saltRounds = 10;
 export const hashPassword = async (password: string): Promise<string> => {
-  return bcrypt.hash(password, 10);
+  return bcrypt.hash(password, saltRounds);
 };
 
 export const comparePassword = async (

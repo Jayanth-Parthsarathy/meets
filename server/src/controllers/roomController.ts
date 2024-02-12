@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../utils/db";
+import prisma from "../utils/db";
 import { AuthRequest } from "../types/auth";
 
 export const getRoom = async (req: Request, res: Response) => {
@@ -12,9 +12,12 @@ export const getRoom = async (req: Request, res: Response) => {
       where: { customId: id },
       include: { participants: true },
     });
+    if (!room) {
+      return res.status(404).json({ messsage: "Room not found" });
+    }
     return res
       .status(200)
-      .json({ messsage: "Room fetched successfully", room });
+      .json({ messsage: "room fetched successfully", room });
   } catch (err) {
     return res
       .status(500)
@@ -141,7 +144,7 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
       }
 
       const updatedParticipants = existingParticipants.filter(
-        (userId) => userId !== user.id,
+        (userId) => userId === user.id,
       );
 
       const updatedRoom = await prisma.room.update({
