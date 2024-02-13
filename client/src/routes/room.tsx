@@ -25,6 +25,8 @@ import {
   updateUIForUser,
 } from "../utils/room";
 import { ParticipantStates } from "../types/socket";
+import JoinNotification from "../components/join-notification";
+import LeaveNotification from "../components/leave-notification";
 
 const Room = () => {
   const params = useParams();
@@ -264,79 +266,67 @@ const Room = () => {
   });
 
   return (
-    <div class="min-h-screen">
-      <div class="grid grid-cols-4 min-w-max">
-        <div id="remote-video-container" class="grid grid-cols-4 gap-4">
-          <div id="local-div" class="h-96 w-96">
-            <video id="local-video" class="h-max w-max" autoplay muted></video>
-            <div
-              class="text-white relative bottom-10 left-10 text-xl"
-              id="local-text"
-            >
-              {localStorage.getItem("username")}
-            </div>
+    <div class="min-h-screen p-10 ">
+      <div id="remote-video-container" class="grid grid-cols-4 gap-4">
+        <div id="local-div" class="h-96 w-96">
+          <video id="local-video" class="h-max w-max" autoplay muted></video>
+          <div
+            class="text-white relative bottom-10 left-10 text-xl"
+            id="local-text"
+          >
+            {localStorage.getItem("username")}
           </div>
         </div>
       </div>
       {showNewUserNotification() && (
-        <div class="fixed bottom-0 right-0 mb-4 mr-4 bg-green-500 text-white p-4 rounded-md shadow-md">
-          <p class="text-sm">{newUserName()} joined the meeting.</p>
-        </div>
+        <JoinNotification newUserName={newUserName()} />
       )}
       {showLeftUserNotification() && (
-        <div class="fixed bottom-0 left-0 mb-4 mr-4 bg-red-500 text-white p-4 rounded-md shadow-md">
-          <p class="text-sm">{leaverName()} left the meeting.</p>
-        </div>
+        <LeaveNotification leaverName={leaverName()} />
       )}
-      <div class="flex justify-between">
-        <button
-          class="bg-white text-black text-4xl bottom-4 right-4 fixed rounded-full p-2 cursor-pointer"
-          style={{
-            bottom: "8%",
-            right: "45%",
-            transform: "translate(50%, 50%)",
-          }}
-          onClick={() => {
-            setIsMuted(!isMuted());
-            handleLocalMic(isMuted());
-            handleMute(
-              isMuted(),
-              socket,
-              Number(localStorage.getItem("userId")),
-            );
-          }}
-        >
-          {isMuted() ? <FiMicOff /> : <FiMic />}
-        </button>
-        <IoCall
-          class="bg-white text-5xl bottom-4 right-4 fixed rounded-full p-2 text-black cursor-pointer"
-          style={{
-            bottom: "8%",
-            right: "50%",
-            transform: "translate(50%, 50%)",
-          }}
-          onClick={() => navigate("/", { replace: true })}
-        />
-        <button
-          class="bg-white text-black text-4xl bottom-4 right-4 fixed rounded-full p-2 cursor-pointer"
-          style={{
-            bottom: "8%",
-            right: "55%",
-            transform: "translate(50%, 50%)",
-          }}
-          onClick={() => {
-            setIsCameraOff(!isCameraOff());
-            handleLocalCam(isCameraOff());
-            handleCameraOff(
-              isCameraOff(),
-              socket,
-              Number(localStorage.getItem("userId")),
-            );
-          }}
-        >
-          {isCameraOff() ? <BsCameraVideoOffFill /> : <BsCameraVideoFill />}
-        </button>
-      </div>
+      <button
+        class="bg-white text-black text-4xl bottom-4 right-4 fixed rounded-full p-2 cursor-pointer"
+        style={{
+          bottom: "8%",
+          right: "45%",
+          transform: "translate(50%, 50%)",
+        }}
+        onClick={() => {
+          setIsMuted(!isMuted());
+          handleLocalMic(isMuted());
+          handleMute(isMuted(), socket, Number(localStorage.getItem("userId")));
+        }}
+      >
+        {isMuted() ? <FiMicOff /> : <FiMic />}
+      </button>
+      <IoCall
+        class="bg-white text-5xl bottom-4 right-4 fixed rounded-full p-2 text-black cursor-pointer"
+        style={{
+          bottom: "8%",
+          right: "50%",
+          transform: "translate(50%, 50%)",
+        }}
+        onClick={() => navigate("/", { replace: true })}
+      />
+      <button
+        class="bg-white text-black text-4xl bottom-4 right-4 fixed rounded-full p-2 cursor-pointer"
+        style={{
+          bottom: "8%",
+          right: "55%",
+          transform: "translate(50%, 50%)",
+        }}
+        onClick={() => {
+          setIsCameraOff(!isCameraOff());
+          handleLocalCam(isCameraOff());
+          handleCameraOff(
+            isCameraOff(),
+            socket,
+            Number(localStorage.getItem("userId")),
+          );
+        }}
+      >
+        {isCameraOff() ? <BsCameraVideoOffFill /> : <BsCameraVideoFill />}
+      </button>
     </div>
   );
 };
