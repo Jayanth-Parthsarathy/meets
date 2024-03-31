@@ -17,6 +17,8 @@ This project is a simple WebRTC-based video chat application similar to Google M
 - Solid.js
 - WebRTC
 - Express.js
+- Socket Io
+- Bun
 
 ## Contributing
 Contributions are welcome! Feel free to open issues or submit pull requests.
